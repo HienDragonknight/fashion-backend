@@ -1,0 +1,27 @@
+# Maven
+target/
+*.class
+*.jar
+*.war
+
+# IDE
+.idea/
+*.iml
+.vscode/
+.eclipse/
+*.swp
+
+# Logs
+*.log
+logs/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Spring Boot
+*.pid
+
+# Secrets (never commit these)
+.env
+.env.local
