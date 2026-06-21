@@ -143,11 +143,27 @@ public class OrderService {
         return orderRepository.findAll(pageable).map(this::toResponse);
     }
 
+    @Transactional(readOnly = true)
+    public OrderResponse getOrderById(Long orderId) {
+        return toResponse(orderRepository.findById(orderId)
+                .orElseThrow(() -> new ResourceNotFoundException("Đơn hàng", orderId)));
+    }
+
     @Transactional
     public OrderResponse updateStatus(Long orderId, String status) {
         Order order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new ResourceNotFoundException("Đơn hàng", orderId));
         order.setStatus(status);
+        return toResponse(orderRepository.save(order));
+    }
+
+    @Transactional
+    public OrderResponse updateStatusAndPayment(Long orderId, String status, String paymentStatus, String ghnCode) {
+        Order order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new ResourceNotFoundException("Đơn hàng", orderId));
+        if (status != null) order.setStatus(status);
+        if (paymentStatus != null) order.setPaymentStatus(paymentStatus);
+        if (ghnCode != null) order.setGhnOrderCode(ghnCode);
         return toResponse(orderRepository.save(order));
     }
 

@@ -328,11 +328,36 @@ public class AdminController {
         return ResponseEntity.ok(ApiResponse.success(orderService.getAllOrders(status, page, size)));
     }
 
+    @GetMapping("/orders/{id}")
+    public ResponseEntity<ApiResponse<OrderResponse>> getOrderById(@PathVariable Long id) {
+        return ResponseEntity.ok(ApiResponse.success(orderService.getOrderById(id)));
+    }
+
     @PutMapping("/orders/{id}/status")
     public ResponseEntity<ApiResponse<OrderResponse>> updateOrderStatus(
             @PathVariable Long id, @RequestBody Map<String, String> body) {
         return ResponseEntity.ok(ApiResponse.success("Cập nhật trạng thái đơn hàng",
                 orderService.updateStatus(id, body.get("status"))));
+    }
+
+    @PutMapping("/orders/{id}/payment")
+    public ResponseEntity<ApiResponse<OrderResponse>> updateOrderPayment(
+            @PathVariable Long id, @RequestBody Map<String, String> body) {
+        return ResponseEntity.ok(ApiResponse.success("Cập nhật thanh toán",
+                orderService.updateStatusAndPayment(
+                        id,
+                        body.get("status"),
+                        body.get("paymentStatus"),
+                        body.get("ghnOrderCode"))));
+    }
+
+    @PostMapping("/orders/{id}/ship")
+    public ResponseEntity<ApiResponse<OrderResponse>> shipOrder(
+            @PathVariable Long id, @RequestBody(required = false) Map<String, String> body) {
+        // Generate a fake GHN code for demo purposes (real integration would call GHN API)
+        String ghnCode = "GHN-" + id + "-" + System.currentTimeMillis() % 100000;
+        OrderResponse updated = orderService.updateStatusAndPayment(id, "SHIPPING", null, ghnCode);
+        return ResponseEntity.ok(ApiResponse.success("Đã gửi đơn vị vận chuyển GHN", updated));
     }
 
     // ── REVIEWS ──────────────────────────────────────────────
