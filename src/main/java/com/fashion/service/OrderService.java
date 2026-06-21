@@ -108,6 +108,41 @@ public class OrderService {
         return toResponse(order);
     }
 
+    private void restoreStock(Order order) {
+        order.getItems().forEach(item -> {
+            if (item.getVariant() != null) {
+                item.getVariant().setStockQty(item.getVariant().getStockQty() + item.getQuantity());
+                variantRepository.save(item.getVariant());
+            }
+        });
+    }
+
+    private void validateStatusTransition(Order order, String newStatus) {
+        String currentStatus = order.getStatus();
+        
+        if ("DELIVERED".equals(currentStatus)) {
+            throw new BusinessException("Không thể thay đổi trạng thái của đơn hàng đã giao thành công");
+        }
+        if ("CANCELLED".equals(currentStatus)) {
+            throw new BusinessException("Không thể thay đổi trạng thái của đơn hàng đã bị hủy");
+        }
+
+        if (newStatus != null) {
+            if ("PENDING".equals(newStatus) && !"PENDING".equals(currentStatus)) {
+                throw new BusinessException("Không thể chuyển trạng thái đơn hàng quay về Chờ xử lý");
+            }
+            if ("CONFIRMED".equals(newStatus) && !"PENDING".equals(currentStatus)) {
+                throw new BusinessException("Không thể chuyển trạng thái đơn hàng quay về Đã xác nhận");
+            }
+            if ("SHIPPING".equals(newStatus) && !"CONFIRMED".equals(currentStatus)) {
+                throw new BusinessException("Đơn hàng phải được xác nhận trước khi giao hàng");
+            }
+            if ("DELIVERED".equals(newStatus) && !"SHIPPING".equals(currentStatus)) {
+                throw new BusinessException("Đơn hàng phải đang trong quá trình giao mới có thể đánh dấu đã giao");
+            }
+        }
+    }
+
     @Transactional
     public OrderResponse cancelOrder(Long userId, Long orderId) {
         Order order = orderRepository.findById(orderId)
@@ -118,14 +153,14 @@ public class OrderService {
         if (!order.getStatus().equals("PENDING")) {
             throw new BusinessException("Chỉ có thể hủy đơn hàng đang chờ xử lý");
         }
+        
+        // Check if within 1 hour
+        if (order.getCreatedAt() != null && order.getCreatedAt().plusHours(1).isBefore(java.time.LocalDateTime.now())) {
+            throw new BusinessException("Đã quá thời hạn 1 giờ để tự hủy đơn hàng");
+        }
 
         // Restore stock
-        order.getItems().forEach(item -> {
-            if (item.getVariant() != null) {
-                item.getVariant().setStockQty(item.getVariant().getStockQty() + item.getQuantity());
-                variantRepository.save(item.getVariant());
-            }
-        });
+        restoreStock(order);
 
         order.setStatus("CANCELLED");
         return toResponse(orderRepository.save(order));
@@ -153,6 +188,13 @@ public class OrderService {
     public OrderResponse updateStatus(Long orderId, String status) {
         Order order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new ResourceNotFoundException("Đơn hàng", orderId));
+        
+        validateStatusTransition(order, status);
+        
+        if ("CANCELLED".equals(status)) {
+            restoreStock(order);
+        }
+        
         order.setStatus(status);
         return toResponse(orderRepository.save(order));
     }
@@ -161,7 +203,14 @@ public class OrderService {
     public OrderResponse updateStatusAndPayment(Long orderId, String status, String paymentStatus, String ghnCode) {
         Order order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new ResourceNotFoundException("Đơn hàng", orderId));
-        if (status != null) order.setStatus(status);
+        
+        if (status != null) {
+            validateStatusTransition(order, status);
+            if ("CANCELLED".equals(status)) {
+                restoreStock(order);
+            }
+            order.setStatus(status);
+        }
         if (paymentStatus != null) order.setPaymentStatus(paymentStatus);
         if (ghnCode != null) order.setGhnOrderCode(ghnCode);
         return toResponse(orderRepository.save(order));
