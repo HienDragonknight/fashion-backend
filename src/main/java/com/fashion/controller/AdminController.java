@@ -290,13 +290,16 @@ public class AdminController {
         return ResponseEntity.ok(ApiResponse.success(result));
     }
 
-    // ── PRODUCTS ───────────────────────────────────────────────
     @GetMapping("/products")
     public ResponseEntity<ApiResponse<Page<ProductResponse>>> getProducts(
+            @RequestParam(required = false) String search,
+            @RequestParam(required = false) Long categoryId,
+            @RequestParam(required = false) Long brandId,
+            @RequestParam(required = false) Boolean isActive,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
         return ResponseEntity.ok(ApiResponse.success(
-                productService.getProducts(null, null, null, null, "newest", page, size)));
+                productService.getAdminProducts(search, categoryId, brandId, isActive, page, size)));
     }
 
     @PostMapping("/products")

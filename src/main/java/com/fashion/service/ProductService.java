@@ -237,4 +237,39 @@ public class ProductService {
     private Specification<Product> priceLte(BigDecimal max) {
         return (root, q, cb) -> cb.lessThanOrEqualTo(root.get("basePrice"), max);
     }
+
+    private Specification<Product> searchQuery(String q) {
+        return (root, query, cb) -> cb.or(
+                cb.like(cb.lower(root.get("name")), "%" + q.toLowerCase() + "%"),
+                cb.like(cb.lower(root.get("slug")), "%" + q.toLowerCase() + "%"),
+                cb.like(cb.lower(root.get("description")), "%" + q.toLowerCase() + "%")
+        );
+    }
+
+    private Specification<Product> hasActiveStatus(Boolean active) {
+        return (root, query, cb) -> cb.equal(root.get("isActive"), active);
+    }
+
+    @Transactional(readOnly = true)
+    public Page<ProductResponse> getAdminProducts(
+            String search, Long categoryId, Long brandId, Boolean isActive, int page, int size) {
+        
+        Specification<Product> spec = Specification.where(null);
+        
+        if (search != null && !search.trim().isEmpty()) {
+            spec = spec.and(searchQuery(search.trim()));
+        }
+        if (categoryId != null) {
+            spec = spec.and(hasCategory(categoryId));
+        }
+        if (brandId != null) {
+            spec = spec.and(hasBrand(brandId));
+        }
+        if (isActive != null) {
+            spec = spec.and(hasActiveStatus(isActive));
+        }
+        
+        Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
+        return productRepository.findAll(spec, pageable).map(this::toResponse);
+    }
 }
