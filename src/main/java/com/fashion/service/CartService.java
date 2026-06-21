@@ -20,6 +20,7 @@ public class CartService {
     private final UserRepository userRepository;
     private final ProductVariantRepository variantRepository;
 
+    @Transactional(readOnly = true)
     public List<CartItemResponse> getCart(Long userId) {
         return cartItemRepository.findByUserId(userId).stream()
                 .map(this::toResponse)
