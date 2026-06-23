@@ -9,6 +9,7 @@ import com.fashion.repository.BannerRepository;
 import com.fashion.repository.BlogPostRepository;
 import com.fashion.repository.CategoryRepository;
 import com.fashion.repository.ProductRepository;
+import com.fashion.util.LocaleUtils;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -16,9 +17,7 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.stream.Collectors;
 
 @Service
@@ -33,20 +32,33 @@ public class HomepageService {
     // -------------------------------------------------------
     // Hero Banner Slides
     // -------------------------------------------------------
+
+    /** Backward-compatible overload — defaults to Vietnamese. */
     @Transactional(readOnly = true)
     public List<HomepageResponse.BannerSlide> getBannerSlides() {
+        return getBannerSlides(LocaleUtils.VI);
+    }
+
+    @Transactional(readOnly = true)
+    public List<HomepageResponse.BannerSlide> getBannerSlides(String lang) {
         return bannerRepository
                 .findByPositionAndIsActiveTrueOrderBySortOrderAsc("HOME_HERO")
                 .stream()
-                .map(this::toBannerSlide)
+                .map(b -> toBannerSlide(b, lang))
                 .collect(Collectors.toList());
     }
 
     // -------------------------------------------------------
-    // Collection Tabs (categories with imageUrl, used in CollectionTabs)
+    // Collection Tabs (categories with imageUrl)
     // -------------------------------------------------------
+
     @Transactional(readOnly = true)
     public List<HomepageResponse.CollectionItem> getCollections() {
+        return getCollections(LocaleUtils.VI);
+    }
+
+    @Transactional(readOnly = true)
+    public List<HomepageResponse.CollectionItem> getCollections(String lang) {
         List<String> collectionSlugs = List.of(
                 "dream-team-winner", "ao-chong-nang", "bst-sip-emmm",
                 "ao-giu-nhiet-xtra-heat", "jeans-collection", "bst-business-casual",
@@ -59,29 +71,37 @@ public class HomepageService {
                 .sorted((a, b) -> Integer.compare(
                         collectionSlugs.indexOf(a.getSlug()),
                         collectionSlugs.indexOf(b.getSlug())))
-                .map(this::toCollectionItem)
+                .map(c -> toCollectionItem(c, lang))
                 .collect(Collectors.toList());
     }
 
     // -------------------------------------------------------
     // Product Sections (6 sections for homepage)
     // -------------------------------------------------------
+
     @Transactional(readOnly = true)
     public List<HomepageResponse.ProductSection> getProductSections() {
-        // Each entry: [slug, displayTitle, viewMoreLink]
+        return getProductSections(LocaleUtils.VI);
+    }
+
+    @Transactional(readOnly = true)
+    public List<HomepageResponse.ProductSection> getProductSections(String lang) {
+        // Each entry: [slug, displayTitle_vi, displayTitle_en, viewMoreLink]
         List<String[]> sectionDefs = List.of(
-                new String[]{"easyoffice",     "EASY OFFICE",               "/collection/EASYOFFICE"},
-                new String[]{"polo-all-in-one","POLO ALL-IN-ONE",            "/collection/POLO-ALL-IN-ONE"},
-                new String[]{"sale-homepage",  "TIẾT KIỆM LÊN ĐẾN 400K",   "/collection/tiet-kiem-len-den-400k"},
-                new String[]{"kid-homepage",   "TỦ ĐỒ CHO BÉ",              "/collection/kid-20"},
-                new String[]{"sun-protection", "BST ÁO CHỐNG NẮNG",         "/collection/ao-chong-nang"},
-                new String[]{"jean-flex",      "BST JEAN FLEX",              "/collection/jeans-collection"}
+                new String[]{"easyoffice",      "EASY OFFICE",                "EASY OFFICE",              "/collection/EASYOFFICE"},
+                new String[]{"polo-all-in-one", "POLO ALL-IN-ONE",            "POLO ALL-IN-ONE",           "/collection/POLO-ALL-IN-ONE"},
+                new String[]{"sale-homepage",   "TIẾT KIỆM LÊN ĐẾN 400K",   "SAVE UP TO 400K",           "/collection/tiet-kiem-len-den-400k"},
+                new String[]{"kid-homepage",    "TỦ ĐỒ CHO BÉ",              "KIDS COLLECTION",           "/collection/kid-20"},
+                new String[]{"sun-protection",  "BST ÁO CHỐNG NẮNG",         "SUN PROTECTION COLLECTION", "/collection/ao-chong-nang"},
+                new String[]{"jean-flex",       "BST JEAN FLEX",             "JEAN FLEX COLLECTION",      "/collection/jeans-collection"}
         );
 
         return sectionDefs.stream().map(def -> {
             String slug         = def[0];
-            String title        = def[1];
-            String viewMoreLink = def[2];
+            String titleVi      = def[1];
+            String titleEn      = def[2];
+            String viewMoreLink = def[3];
+            String title        = LocaleUtils.resolve(titleVi, titleEn, lang);
 
             Category category = categoryRepository.findBySlug(slug).orElse(null);
             if (category == null) {
@@ -101,7 +121,7 @@ public class HomepageService {
                     productRepository.findAll(spec,
                             PageRequest.of(0, 8, Sort.by("id").ascending()))
                             .stream()
-                            .map(this::toProductCard)
+                            .map(p -> toProductCard(p, lang))
                             .collect(Collectors.toList());
 
             return HomepageResponse.ProductSection.builder()
@@ -116,25 +136,35 @@ public class HomepageService {
     // -------------------------------------------------------
     // Blog Posts
     // -------------------------------------------------------
+
     @Transactional(readOnly = true)
     public List<HomepageResponse.BlogPostItem> getBlogPosts() {
+        return getBlogPosts(LocaleUtils.VI);
+    }
+
+    @Transactional(readOnly = true)
+    public List<HomepageResponse.BlogPostItem> getBlogPosts(String lang) {
         return blogPostRepository.findByIsActiveTrueOrderBySortOrderAsc()
                 .stream()
-                .map(this::toBlogPostItem)
+                .map(bp -> toBlogPostItem(bp, lang))
                 .collect(Collectors.toList());
     }
 
     // -------------------------------------------------------
-    // Mappers
+    // Mappers — all accept lang for bilingual resolution
     // -------------------------------------------------------
-    private HomepageResponse.BannerSlide toBannerSlide(Banner b) {
+
+    private HomepageResponse.BannerSlide toBannerSlide(Banner b, String lang) {
         return HomepageResponse.BannerSlide.builder()
                 .id(b.getId())
-                .badge(b.getBadge())
+                .badge(LocaleUtils.resolve(b.getBadge(), b.getBadgeEn(), lang))
+                .badgeEn(b.getBadgeEn())
                 .badgeColor(b.getBadgeColor())
                 .titleText(b.getTitleText())
-                .subtitle(b.getSubtitle())
-                .ctaText(b.getCtaText())
+                .subtitle(LocaleUtils.resolveNullable(b.getSubtitle(), b.getSubtitleEn(), lang))
+                .subtitleEn(b.getSubtitleEn())
+                .ctaText(LocaleUtils.resolve(b.getCtaText(), b.getCtaTextEn(), lang))
+                .ctaTextEn(b.getCtaTextEn())
                 .textColor(b.getTextColor())
                 .overlayGradient(b.getOverlayGradient())
                 .imageUrl(b.getImageUrl())
@@ -143,35 +173,36 @@ public class HomepageService {
                 .build();
     }
 
-    private HomepageResponse.CollectionItem toCollectionItem(Category c) {
+    private HomepageResponse.CollectionItem toCollectionItem(Category c, String lang) {
         return HomepageResponse.CollectionItem.builder()
                 .id(c.getId())
-                .name(c.getName())
+                .name(LocaleUtils.resolve(c.getName(), c.getNameEn(), lang))
+                .nameEn(c.getNameEn())
                 .slug(c.getSlug())
                 .imageUrl(c.getImageUrl())
                 .build();
     }
 
-    private HomepageResponse.ProductCard toProductCard(Product p) {
+    private HomepageResponse.ProductCard toProductCard(Product p, String lang) {
         return HomepageResponse.ProductCard.builder()
                 .id(p.getId())
-                .name(p.getName())
+                .name(LocaleUtils.resolve(p.getName(), p.getNameEn(), lang))
                 .slug(p.getSlug())
-                // effectivePrice = salePrice if exists, else basePrice (current displayed price)
                 .price(p.getEffectivePrice())
-                // originalPrice = basePrice shown as strikethrough (only when there's a sale)
                 .originalPrice(p.getSalePrice() != null ? p.getBasePrice() : null)
                 .image(p.getThumbnailUrl())
                 .build();
     }
 
-    private HomepageResponse.BlogPostItem toBlogPostItem(BlogPost bp) {
+    private HomepageResponse.BlogPostItem toBlogPostItem(BlogPost bp, String lang) {
         return HomepageResponse.BlogPostItem.builder()
                 .id(bp.getId())
-                .title(bp.getTitle())
+                .title(LocaleUtils.resolve(bp.getTitle(), bp.getTitleEn(), lang))
+                .titleEn(bp.getTitleEn())
                 .slug(bp.getSlug())
                 .date(bp.getDate())
                 .image(bp.getImageUrl())
+                .excerpt(LocaleUtils.resolveNullable(bp.getExcerpt(), bp.getExcerptEn(), lang))
                 .build();
     }
 }

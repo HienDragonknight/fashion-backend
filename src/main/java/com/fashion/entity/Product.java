@@ -25,11 +25,19 @@ public class Product {
     @Column(nullable = false, length = 500)
     private String name;
 
+    /** English translation — null means "not yet translated". */
+    @Column(name = "name_en", length = 500)
+    private String nameEn;
+
     @Column(nullable = false, unique = true, length = 500)
     private String slug;
 
     @Column(columnDefinition = "TEXT")
     private String description;
+
+    /** English translation of description. */
+    @Column(name = "description_en", columnDefinition = "TEXT")
+    private String descriptionEn;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "brand_id")

@@ -6,6 +6,7 @@ import com.fashion.entity.*;
 import com.fashion.exception.BusinessException;
 import com.fashion.exception.ResourceNotFoundException;
 import com.fashion.repository.*;
+import com.fashion.util.LocaleUtils;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.*;
 import org.springframework.data.jpa.domain.Specification;
@@ -14,8 +15,11 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.text.Normalizer;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -31,6 +35,13 @@ public class ProductService {
     public Page<ProductResponse> getProducts(
             Long categoryId, Long brandId, BigDecimal minPrice, BigDecimal maxPrice,
             String sort, int page, int size) {
+        return getProducts(categoryId, brandId, minPrice, maxPrice, sort, page, size, LocaleUtils.VI);
+    }
+
+    @Transactional(readOnly = true)
+    public Page<ProductResponse> getProducts(
+            Long categoryId, Long brandId, BigDecimal minPrice, BigDecimal maxPrice,
+            String sort, int page, int size, String lang) {
 
         Specification<Product> spec = Specification.where(isActive());
 
@@ -48,21 +59,50 @@ public class ProductService {
         };
 
         Pageable pageable = PageRequest.of(page, size, sortObj);
-        return productRepository.findAll(spec, pageable).map(this::toResponse);
+        return toPageWithBatchRating(productRepository.findAll(spec, pageable), lang);
     }
 
     @Transactional(readOnly = true)
     public Page<ProductResponse> search(String query, int page, int size) {
+        return search(query, page, size, LocaleUtils.VI);
+    }
+
+    @Transactional(readOnly = true)
+    public Page<ProductResponse> search(String query, int page, int size, String lang) {
         Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
-        return productRepository.search(query, pageable).map(this::toResponse);
+        return toPageWithBatchRating(productRepository.search(query, pageable), lang);
+    }
+
+    @Transactional(readOnly = true)
+    public ProductResponse getById(Long id) {
+        return getById(id, LocaleUtils.VI);
+    }
+
+    @Transactional(readOnly = true)
+    public ProductResponse getById(Long id, String lang) {
+        // JOIN FETCH variants+images+brand+category + batch review in 1 go
+        Product product = productRepository.findByIdWithDetails(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Sản phẩm", id));
+        // Use batch methods with single-element list to avoid 2 separate COUNT/AVG queries
+        List<Long> ids = List.of(id);
+        Map<Long, Double> avgMap = reviewRepository.avgRatingForProducts(ids).stream()
+                .collect(Collectors.toMap(r -> ((Number) r[0]).longValue(), r -> ((Number) r[1]).doubleValue()));
+        Map<Long, Long> cntMap = reviewRepository.countByProductIds(ids).stream()
+                .collect(Collectors.toMap(r -> ((Number) r[0]).longValue(), r -> ((Number) r[1]).longValue()));
+        return toResponse(product, avgMap, cntMap, lang);
     }
 
     @Transactional
     public ProductResponse getBySlug(String slug) {
+        return getBySlug(slug, LocaleUtils.VI);
+    }
+
+    @Transactional
+    public ProductResponse getBySlug(String slug, String lang) {
         Product product = productRepository.findBySlugAndIsActiveTrue(slug)
                 .orElseThrow(() -> new ResourceNotFoundException("Sản phẩm không tìm thấy"));
         productRepository.incrementViewCount(product.getId());
-        return toResponse(product);
+        return toResponse(product, null, null, lang);
     }
 
     @Transactional
@@ -74,8 +114,10 @@ public class ProductService {
 
         Product product = Product.builder()
                 .name(request.getName())
+                .nameEn(request.getNameEn())
                 .slug(slug)
                 .description(request.getDescription())
+                .descriptionEn(request.getDescriptionEn())
                 .basePrice(request.getBasePrice())
                 .salePrice(request.getSalePrice())
                 .thumbnailUrl(request.getThumbnailUrl())
@@ -110,6 +152,7 @@ public class ProductService {
                 if (variantRepository.existsBySku(vr.getSku())) {
                     throw new BusinessException("SKU đã tồn tại: " + vr.getSku());
                 }
+                String variantImagesStr = vr.getImageUrls() != null ? String.join(",", vr.getImageUrls()) : null;
                 product.getVariants().add(ProductVariant.builder()
                         .product(product)
                         .size(vr.getSize())
@@ -118,6 +161,7 @@ public class ProductService {
                         .sku(vr.getSku())
                         .stockQty(vr.getStockQty())
                         .priceAdjustment(vr.getPriceAdjustment())
+                        .imageUrls(variantImagesStr)
                         .build());
             }
         }
@@ -127,11 +171,14 @@ public class ProductService {
 
     @Transactional
     public ProductResponse update(Long id, ProductRequest request) {
-        Product product = productRepository.findById(id)
+        // Use findByIdWithDetails to eagerly load variants+images — avoids N+1 on save
+        Product product = productRepository.findByIdWithDetails(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Sản phẩm", id));
 
         product.setName(request.getName());
+        product.setNameEn(request.getNameEn());
         product.setDescription(request.getDescription());
+        product.setDescriptionEn(request.getDescriptionEn());
         product.setBasePrice(request.getBasePrice());
         product.setSalePrice(request.getSalePrice());
         product.setThumbnailUrl(request.getThumbnailUrl());
@@ -141,9 +188,72 @@ public class ProductService {
 
         if (request.getCategoryId() != null) {
             product.setCategory(categoryRepository.findById(request.getCategoryId()).orElse(null));
+        } else {
+            product.setCategory(null);
         }
         if (request.getBrandId() != null) {
             product.setBrand(brandRepository.findById(request.getBrandId()).orElse(null));
+        } else {
+            product.setBrand(null);
+        }
+
+        // Sync product images
+        product.getImages().clear();
+        if (request.getImageUrls() != null) {
+            for (int i = 0; i < request.getImageUrls().size(); i++) {
+                product.getImages().add(ProductImage.builder()
+                        .product(product)
+                        .imageUrl(request.getImageUrls().get(i))
+                        .sortOrder(i)
+                        .build());
+            }
+        }
+
+        // Sync variants by SKU — dùng copy list để tránh ConcurrentModificationException
+        List<ProductVariant> existingVariants = new java.util.ArrayList<>(product.getVariants());
+        List<ProductRequest.VariantRequest> incomingVariants = request.getVariants();
+
+        if (incomingVariants != null) {
+            // Xóa các variant không còn trong request
+            List<ProductVariant> toRemove = existingVariants.stream()
+                    .filter(ev -> incomingVariants.stream()
+                            .noneMatch(iv -> ev.getSku().equalsIgnoreCase(iv.getSku())))
+                    .toList();
+            product.getVariants().removeAll(toRemove);
+
+            for (ProductRequest.VariantRequest vr : incomingVariants) {
+                ProductVariant existing = existingVariants.stream()
+                        .filter(ev -> ev.getSku().equalsIgnoreCase(vr.getSku()))
+                        .findFirst()
+                        .orElse(null);
+
+                String variantImagesStr = vr.getImageUrls() != null ? String.join(",", vr.getImageUrls()) : null;
+
+                if (existing != null) {
+                    existing.setSize(vr.getSize());
+                    existing.setColor(vr.getColor());
+                    existing.setColorHex(vr.getColorHex());
+                    existing.setStockQty(vr.getStockQty());
+                    existing.setPriceAdjustment(vr.getPriceAdjustment());
+                    existing.setImageUrls(variantImagesStr);
+                } else {
+                    if (variantRepository.existsBySku(vr.getSku())) {
+                        throw new BusinessException("SKU đã tồn tại ở sản phẩm khác: " + vr.getSku());
+                    }
+                    product.getVariants().add(ProductVariant.builder()
+                            .product(product)
+                            .size(vr.getSize())
+                            .color(vr.getColor())
+                            .colorHex(vr.getColorHex())
+                            .sku(vr.getSku())
+                            .stockQty(vr.getStockQty())
+                            .priceAdjustment(vr.getPriceAdjustment())
+                            .imageUrls(variantImagesStr)
+                            .build());
+                }
+            }
+        } else {
+            product.getVariants().clear();
         }
 
         return toResponse(productRepository.save(product));
@@ -157,15 +267,32 @@ public class ProductService {
         productRepository.save(product);
     }
 
-    public ProductResponse toResponse(Product product) {
-        Double avgRating = reviewRepository.avgRatingByProductId(product.getId());
-        Long reviewCount = reviewRepository.countByProductId(product.getId());
+
+    /**
+     * Locale-aware product → response mapping.
+     * Pass {@code lang} from {@link com.fashion.util.LocaleUtils#fromHeader} to resolve bilingual fields.
+     */
+    public ProductResponse toResponse(Product product,
+                                       Map<Long, Double> avgRatingMap,
+                                       Map<Long, Long> reviewCountMap,
+                                       String lang) {
+        String resolvedLang = lang != null ? lang : LocaleUtils.VI;
+        Double avgRating = avgRatingMap != null
+                ? avgRatingMap.getOrDefault(product.getId(), null)
+                : reviewRepository.avgRatingByProductId(product.getId());
+        Long reviewCount = reviewCountMap != null
+                ? reviewCountMap.getOrDefault(product.getId(), 0L)
+                : reviewRepository.countByProductId(product.getId());
 
         return ProductResponse.builder()
                 .id(product.getId())
-                .name(product.getName())
+                .name(LocaleUtils.resolve(product.getName(), product.getNameEn(), resolvedLang))
+                .nameVi(product.getName())
+                .nameEn(product.getNameEn())
                 .slug(product.getSlug())
-                .description(product.getDescription())
+                .description(LocaleUtils.resolveNullable(product.getDescription(), product.getDescriptionEn(), resolvedLang))
+                .descriptionVi(product.getDescription())
+                .descriptionEn(product.getDescriptionEn())
                 .basePrice(product.getBasePrice())
                 .salePrice(product.getSalePrice())
                 .effectivePrice(product.getEffectivePrice())
@@ -189,20 +316,60 @@ public class ProductService {
                                 .stockQty(v.getStockQty())
                                 .priceAdjustment(v.getPriceAdjustment())
                                 .label(v.getLabel())
+                                .imageUrls(v.getImageUrls() != null && !v.getImageUrls().trim().isEmpty()
+                                        ? List.of(v.getImageUrls().split(","))
+                                        : List.of())
                                 .build()).toList())
                 .brand(product.getBrand() != null ? ProductResponse.BrandInfo.builder()
                         .id(product.getBrand().getId())
-                        .name(product.getBrand().getName())
+                        .name(LocaleUtils.resolve(product.getBrand().getName(), product.getBrand().getNameEn(), resolvedLang))
+                        .nameEn(product.getBrand().getNameEn())
                         .slug(product.getBrand().getSlug())
                         .logoUrl(product.getBrand().getLogoUrl())
                         .build() : null)
                 .category(product.getCategory() != null ? ProductResponse.CategoryInfo.builder()
                         .id(product.getCategory().getId())
-                        .name(product.getCategory().getName())
+                        .name(LocaleUtils.resolve(product.getCategory().getName(), product.getCategory().getNameEn(), resolvedLang))
+                        .nameEn(product.getCategory().getNameEn())
                         .slug(product.getCategory().getSlug())
                         .build() : null)
                 .createdAt(product.getCreatedAt())
                 .build();
+    }
+
+    /** Overload: backwards-compatible, defaults to Vietnamese. */
+    public ProductResponse toResponse(Product product,
+                                       Map<Long, Double> avgRatingMap,
+                                       Map<Long, Long> reviewCountMap) {
+        return toResponse(product, avgRatingMap, reviewCountMap, LocaleUtils.VI);
+    }
+
+    /** Overload backward-compat — called from save/update (1 product) */
+    public ProductResponse toResponse(Product product) {
+        return toResponse(product, null, null, LocaleUtils.VI);
+    }
+
+    private Page<ProductResponse> toPageWithBatchRating(Page<Product> productPage) {
+        return toPageWithBatchRating(productPage, LocaleUtils.VI);
+    }
+
+    private Page<ProductResponse> toPageWithBatchRating(Page<Product> productPage, String lang) {
+        List<Long> ids = productPage.getContent().stream()
+                .map(Product::getId).collect(Collectors.toList());
+
+        if (ids.isEmpty()) return productPage.map(p -> toResponse(p, Map.of(), Map.of(), lang));
+
+        // 2 query batch thay thế 2N query
+        Map<Long, Double> avgRatingMap = reviewRepository.avgRatingForProducts(ids).stream()
+                .collect(Collectors.toMap(
+                        row -> ((Number) row[0]).longValue(),
+                        row -> ((Number) row[1]).doubleValue()));
+        Map<Long, Long> countMap = reviewRepository.countByProductIds(ids).stream()
+                .collect(Collectors.toMap(
+                        row -> ((Number) row[0]).longValue(),
+                        row -> ((Number) row[1]).longValue()));
+
+        return productPage.map(p -> toResponse(p, avgRatingMap, countMap, lang));
     }
 
     public static String generateSlug(String input) {
@@ -252,7 +419,7 @@ public class ProductService {
 
     @Transactional(readOnly = true)
     public Page<ProductResponse> getAdminProducts(
-            String search, Long categoryId, Long brandId, Boolean isActive, int page, int size) {
+            String search, Long categoryId, Long brandId, Boolean isActive, String sort, int page, int size) {
         
         Specification<Product> spec = Specification.where(null);
         
@@ -269,7 +436,15 @@ public class ProductService {
             spec = spec.and(hasActiveStatus(isActive));
         }
         
-        Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
-        return productRepository.findAll(spec, pageable).map(this::toResponse);
+        Sort sortObj = switch (sort != null ? sort : "newest") {
+            case "price_asc" -> Sort.by("basePrice").ascending();
+            case "price_desc" -> Sort.by("basePrice").descending();
+            case "name_asc" -> Sort.by("name").ascending();
+            case "name_desc" -> Sort.by("name").descending();
+            default -> Sort.by("createdAt").descending();
+        };
+
+        Pageable pageable = PageRequest.of(page, size, sortObj);
+        return toPageWithBatchRating(productRepository.findAll(spec, pageable));
     }
 }

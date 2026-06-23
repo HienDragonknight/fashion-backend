@@ -290,16 +290,22 @@ public class AdminController {
         return ResponseEntity.ok(ApiResponse.success(result));
     }
 
+    @GetMapping("/products/{id}")
+    public ResponseEntity<ApiResponse<ProductResponse>> getProductById(@PathVariable Long id) {
+        return ResponseEntity.ok(ApiResponse.success(productService.getById(id)));
+    }
+
     @GetMapping("/products")
     public ResponseEntity<ApiResponse<Page<ProductResponse>>> getProducts(
             @RequestParam(required = false) String search,
             @RequestParam(required = false) Long categoryId,
             @RequestParam(required = false) Long brandId,
             @RequestParam(required = false) Boolean isActive,
+            @RequestParam(required = false) String sort,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
         return ResponseEntity.ok(ApiResponse.success(
-                productService.getAdminProducts(search, categoryId, brandId, isActive, page, size)));
+                productService.getAdminProducts(search, categoryId, brandId, isActive, sort, page, size)));
     }
 
     @PostMapping("/products")
@@ -357,10 +363,10 @@ public class AdminController {
     @PostMapping("/orders/{id}/ship")
     public ResponseEntity<ApiResponse<OrderResponse>> shipOrder(
             @PathVariable Long id, @RequestBody(required = false) Map<String, String> body) {
-        // Generate a fake GHN code for demo purposes (real integration would call GHN API)
-        String ghnCode = "GHN-" + id + "-" + System.currentTimeMillis() % 100000;
-        OrderResponse updated = orderService.updateStatusAndPayment(id, "SHIPPING", null, ghnCode);
-        return ResponseEntity.ok(ApiResponse.success("Đã gửi đơn vị vận chuyển GHN", updated));
+        // Generate a generic tracking code
+        String trackingCode = "SHIP-" + id + "-" + System.currentTimeMillis() % 100000;
+        OrderResponse updated = orderService.updateStatusAndPayment(id, "SHIPPING", null, trackingCode);
+        return ResponseEntity.ok(ApiResponse.success("Đã gửi đơn vị vận chuyển", updated));
     }
 
     // ── REVIEWS ──────────────────────────────────────────────

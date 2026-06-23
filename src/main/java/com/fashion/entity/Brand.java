@@ -18,6 +18,10 @@ public class Brand {
     @Column(nullable = false)
     private String name;
 
+    /** English translation. */
+    @Column(name = "name_en")
+    private String nameEn;
+
     @Column(nullable = false, unique = true)
     private String slug;
 
@@ -26,6 +30,10 @@ public class Brand {
 
     @Column(columnDefinition = "TEXT")
     private String description;
+
+    /** English translation of brand description. */
+    @Column(name = "description_en", columnDefinition = "TEXT")
+    private String descriptionEn;
 
     @Column(name = "is_active", nullable = false)
     @Builder.Default

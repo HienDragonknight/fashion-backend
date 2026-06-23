@@ -42,6 +42,9 @@ public class ProductVariant {
     @Builder.Default
     private BigDecimal priceAdjustment = BigDecimal.ZERO;
 
+    @Column(name = "image_urls", columnDefinition = "TEXT")
+    private String imageUrls;
+
     public String getLabel() {
         StringBuilder sb = new StringBuilder();
         if (color != null) sb.append(color);

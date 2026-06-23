@@ -23,6 +23,10 @@ public class Category {
     @Column(nullable = false)
     private String name;
 
+    /** English translation — used when Accept-Language: en. */
+    @Column(name = "name_en")
+    private String nameEn;
+
     @Column(nullable = false, unique = true)
     private String slug;
 

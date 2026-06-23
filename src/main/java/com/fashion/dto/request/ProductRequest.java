@@ -1,5 +1,6 @@
 package com.fashion.dto.request;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.validation.constraints.*;
 import lombok.Data;
 import java.math.BigDecimal;
@@ -12,7 +13,12 @@ public class ProductRequest {
     @Size(max = 500)
     private String name;
 
+    @Size(max = 500)
+    private String nameEn;
+
     private String description;
+
+    private String descriptionEn;
 
     private Long brandId;
 
@@ -36,7 +42,9 @@ public class ProductRequest {
 
     private List<VariantRequest> variants;
 
+    /** Ignore unknown fields (e.g. id, label) sent by the frontend from loaded product data. */
     @Data
+    @JsonIgnoreProperties(ignoreUnknown = true)
     public static class VariantRequest {
         private String size;
         private String color;
@@ -49,5 +57,8 @@ public class ProductRequest {
         private Integer stockQty = 0;
 
         private BigDecimal priceAdjustment = BigDecimal.ZERO;
+
+        private List<String> imageUrls;
     }
 }
+

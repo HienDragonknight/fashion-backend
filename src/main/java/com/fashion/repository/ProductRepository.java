@@ -19,6 +19,16 @@ public interface ProductRepository extends JpaRepository<Product, Long>,
 
     Page<Product> findByIsActiveTrue(Pageable pageable);
 
+    /** Load product + brand + category eagerly — avoids lazy N+1 on ManyToOne.
+     * variants and images are EAGER on entity so Hibernate loads them automatically. */
+    @Query("""
+        SELECT p FROM Product p
+        LEFT JOIN FETCH p.brand
+        LEFT JOIN FETCH p.category
+        WHERE p.id = :id
+        """)
+    Optional<Product> findByIdWithDetails(@Param("id") Long id);
+
     @Query("""
         SELECT p FROM Product p
         WHERE p.isActive = true

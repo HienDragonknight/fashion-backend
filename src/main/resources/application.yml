@@ -73,3 +73,11 @@ logging:
     com.fashion: INFO
     org.springframework.security: WARN
     org.flywaydb: INFO
+
+# ── AI Translation (admin productivity tool) ───────────────────────────────
+# Set AI_TRANSLATION_API_KEY env var to enable. Leave empty to disable gracefully.
+ai:
+  translation:
+    api-key: ${AI_TRANSLATION_API_KEY:}
+    api-url: ${AI_TRANSLATION_API_URL:https://generativelanguage.googleapis.com/v1beta/openai/v1/chat/completions}
+    model: ${AI_TRANSLATION_MODEL:gemini-2.5-flash}

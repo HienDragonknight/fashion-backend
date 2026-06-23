@@ -19,6 +19,26 @@ public class BlogPost {
     @Column(nullable = false, length = 500)
     private String title;
 
+    /** English translation of title. */
+    @Column(name = "title_en", length = 500)
+    private String titleEn;
+
+    /** Short excerpt shown on listing cards (Vietnamese). */
+    @Column(columnDefinition = "TEXT")
+    private String excerpt;
+
+    /** Short excerpt in English. */
+    @Column(name = "excerpt_en", columnDefinition = "TEXT")
+    private String excerptEn;
+
+    /** Full article content in Vietnamese (HTML or Markdown). */
+    @Column(columnDefinition = "LONGTEXT")
+    private String content;
+
+    /** Full article content in English. */
+    @Column(name = "content_en", columnDefinition = "LONGTEXT")
+    private String contentEn;
+
     @Column(nullable = false, unique = true, length = 500)
     private String slug;
 
