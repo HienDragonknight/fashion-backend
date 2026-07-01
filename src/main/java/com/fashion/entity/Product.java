@@ -88,6 +88,13 @@ public class Product {
     @Builder.Default
     private Integer viewCount = 0;
 
+    /**
+     * Comma-separated gender tags: MALE, FEMALE, UNISEX, KIDS
+     * A product may have multiple values e.g. "MALE,UNISEX"
+     */
+    @Column(name = "gender_tags", length = 100)
+    private String genderTags;
+
     @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, orphanRemoval = true,
                fetch = FetchType.EAGER)
     @Builder.Default

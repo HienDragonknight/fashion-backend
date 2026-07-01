@@ -59,6 +59,10 @@ public class Order {
     @Column(name = "vnpay_txn_ref", length = 100)
     private String vnpayTxnRef;
 
+    /** PayOS orderCode or Stripe PaymentIntent ID */
+    @Column(name = "payment_ref", length = 200)
+    private String paymentRef;
+
     @Column(columnDefinition = "TEXT")
     private String note;
 

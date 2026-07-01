@@ -35,13 +35,27 @@ public class ProductService {
     public Page<ProductResponse> getProducts(
             Long categoryId, Long brandId, BigDecimal minPrice, BigDecimal maxPrice,
             String sort, int page, int size) {
-        return getProducts(categoryId, brandId, minPrice, maxPrice, sort, page, size, LocaleUtils.VI);
+        return getProducts(categoryId, brandId, minPrice, maxPrice, null, sort, page, size, LocaleUtils.VI);
     }
 
     @Transactional(readOnly = true)
     public Page<ProductResponse> getProducts(
             Long categoryId, Long brandId, BigDecimal minPrice, BigDecimal maxPrice,
             String sort, int page, int size, String lang) {
+        return getProducts(categoryId, brandId, minPrice, maxPrice, null, sort, page, size, lang);
+    }
+
+    @Transactional(readOnly = true)
+    public Page<ProductResponse> getProducts(
+            Long categoryId, Long brandId, BigDecimal minPrice, BigDecimal maxPrice,
+            String gender, String sort, int page, int size, String lang) {
+        return getProducts(categoryId, brandId, minPrice, maxPrice, gender, null, sort, page, size, lang);
+    }
+
+    @Transactional(readOnly = true)
+    public Page<ProductResponse> getProducts(
+            Long categoryId, Long brandId, BigDecimal minPrice, BigDecimal maxPrice,
+            String gender, Integer minDiscountPercent, String sort, int page, int size, String lang) {
 
         Specification<Product> spec = Specification.where(isActive());
 
@@ -49,6 +63,8 @@ public class ProductService {
         if (brandId != null) spec = spec.and(hasBrand(brandId));
         if (minPrice != null) spec = spec.and(priceGte(minPrice));
         if (maxPrice != null) spec = spec.and(priceLte(maxPrice));
+        if (gender != null && !gender.isBlank()) spec = spec.and(hasGenderTag(gender.toUpperCase()));
+        if (minDiscountPercent != null && minDiscountPercent > 0) spec = spec.and(hasMinDiscount(minDiscountPercent));
 
         Sort sortObj = switch (sort != null ? sort : "newest") {
             case "price_asc" -> Sort.by("basePrice").ascending();
@@ -112,6 +128,10 @@ public class ProductService {
             slug = slug + "-" + System.currentTimeMillis();
         }
 
+        String genderTagsStr = (request.getGenderTags() != null && !request.getGenderTags().isEmpty())
+                ? String.join(",", request.getGenderTags())
+                : null;
+
         Product product = Product.builder()
                 .name(request.getName())
                 .nameEn(request.getNameEn())
@@ -124,6 +144,7 @@ public class ProductService {
                 .isActive(request.getIsActive())
                 .isFeatured(request.getIsFeatured())
                 .weightGrams(request.getWeightGrams())
+                .genderTags(genderTagsStr)
                 .build();
 
         if (request.getCategoryId() != null) {
@@ -185,6 +206,11 @@ public class ProductService {
         product.setIsActive(request.getIsActive());
         product.setIsFeatured(request.getIsFeatured());
         product.setWeightGrams(request.getWeightGrams());
+        product.setGenderTags(
+                (request.getGenderTags() != null && !request.getGenderTags().isEmpty())
+                        ? String.join(",", request.getGenderTags())
+                        : null
+        );
 
         if (request.getCategoryId() != null) {
             product.setCategory(categoryRepository.findById(request.getCategoryId()).orElse(null));
@@ -304,6 +330,9 @@ public class ProductService {
                 .viewCount(product.getViewCount())
                 .avgRating(avgRating)
                 .reviewCount(reviewCount != null ? reviewCount : 0L)
+                .genderTags(product.getGenderTags() != null && !product.getGenderTags().isEmpty()
+                        ? List.of(product.getGenderTags().split(","))
+                        : List.of())
                 .imageUrls(product.getImages().stream()
                         .map(ProductImage::getImageUrl).toList())
                 .variants(product.getVariants().stream().map(v ->
@@ -405,6 +434,35 @@ public class ProductService {
         return (root, q, cb) -> cb.lessThanOrEqualTo(root.get("basePrice"), max);
     }
 
+    /**
+     * Filter products whose gender_tags contain the given tag.
+     * Uses LIKE to support comma-separated storage (e.g. "MALE,UNISEX" matches MALE and UNISEX).
+     */
+    private Specification<Product> hasGenderTag(String tag) {
+        return (root, query, cb) -> cb.like(root.get("genderTags"), "%" + tag + "%");
+    }
+
+    /**
+     * Filter products with salePrice set AND discount >= minPercent.
+     * discount% = (basePrice - salePrice) / basePrice * 100
+     */
+    private Specification<Product> hasMinDiscount(int minPercent) {
+        return (root, query, cb) -> {
+            // salePrice must not be null
+            jakarta.persistence.criteria.Predicate hasSale = cb.isNotNull(root.get("salePrice"));
+            // (basePrice - salePrice) / basePrice >= minPercent / 100
+            // => basePrice - salePrice >= basePrice * minPercent / 100
+            // => (basePrice - salePrice) * 100 >= basePrice * minPercent
+            jakarta.persistence.criteria.Expression<BigDecimal> base = root.get("basePrice");
+            jakarta.persistence.criteria.Expression<BigDecimal> sale = root.get("salePrice");
+            jakarta.persistence.criteria.Expression<BigDecimal> diff = cb.diff(base, sale);
+            jakarta.persistence.criteria.Expression<BigDecimal> diffX100 = cb.prod(diff, new BigDecimal("100"));
+            jakarta.persistence.criteria.Expression<BigDecimal> threshold = cb.prod(base, new BigDecimal(minPercent));
+            jakarta.persistence.criteria.Predicate enoughDiscount = cb.greaterThanOrEqualTo(diffX100, threshold);
+            return cb.and(hasSale, enoughDiscount);
+        };
+    }
+
     private Specification<Product> searchQuery(String q) {
         return (root, query, cb) -> cb.or(
                 cb.like(cb.lower(root.get("name")), "%" + q.toLowerCase() + "%"),
@@ -419,10 +477,11 @@ public class ProductService {
 
     @Transactional(readOnly = true)
     public Page<ProductResponse> getAdminProducts(
-            String search, Long categoryId, Long brandId, Boolean isActive, String sort, int page, int size) {
-        
+            String search, Long categoryId, Long brandId, Boolean isActive,
+            String gender, String sort, int page, int size) {
+
         Specification<Product> spec = Specification.where(null);
-        
+
         if (search != null && !search.trim().isEmpty()) {
             spec = spec.and(searchQuery(search.trim()));
         }
@@ -434,6 +493,9 @@ public class ProductService {
         }
         if (isActive != null) {
             spec = spec.and(hasActiveStatus(isActive));
+        }
+        if (gender != null && !gender.isBlank()) {
+            spec = spec.and(hasGenderTag(gender.toUpperCase()));
         }
         
         Sort sortObj = switch (sort != null ? sort : "newest") {

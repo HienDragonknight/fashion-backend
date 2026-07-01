@@ -38,6 +38,12 @@ public class ProductRequest {
 
     private Integer weightGrams = 300;
 
+    /**
+     * Gender tags for this product. Allowed values: MALE, FEMALE, UNISEX, KIDS.
+     * A product may belong to multiple genders e.g. ["MALE", "UNISEX"].
+     */
+    private List<String> genderTags;
+
     private List<String> imageUrls;
 
     private List<VariantRequest> variants;

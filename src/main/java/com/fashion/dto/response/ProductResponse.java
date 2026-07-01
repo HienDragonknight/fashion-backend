@@ -53,6 +53,8 @@ public class ProductResponse {
     private Integer viewCount;
     private Double avgRating;
     private Long reviewCount;
+    /** Parsed gender tags list, e.g. ["MALE", "UNISEX"]. */
+    private List<String> genderTags;
     private List<String> imageUrls;
     private List<VariantResponse> variants;
     private LocalDateTime createdAt;

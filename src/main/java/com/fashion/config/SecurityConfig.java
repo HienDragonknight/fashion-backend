@@ -52,6 +52,9 @@ public class SecurityConfig {
                 .requestMatchers("/ghn/**").permitAll()
                 // VNPay callback
                 .requestMatchers("/payment/vnpay/callback").permitAll()
+                // PayOS + Stripe webhooks (signature-verified inside service)
+                .requestMatchers("/payments/payos/webhook").permitAll()
+                .requestMatchers("/payments/stripe/webhook").permitAll()
                 // Admin endpoints
                 .requestMatchers("/admin/**").hasRole("ADMIN")
                 // All other requests need authentication
