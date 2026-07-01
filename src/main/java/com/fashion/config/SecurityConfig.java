@@ -55,6 +55,8 @@ public class SecurityConfig {
                 // PayOS + Stripe webhooks (signature-verified inside service)
                 .requestMatchers("/payments/payos/webhook").permitAll()
                 .requestMatchers("/payments/stripe/webhook").permitAll()
+                // Actuator health – must be public for Railway healthchecks
+                .requestMatchers("/actuator/**").permitAll()
                 // Admin endpoints
                 .requestMatchers("/admin/**").hasRole("ADMIN")
                 // All other requests need authentication
