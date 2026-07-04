@@ -95,6 +95,9 @@ management:
   endpoint:
     health:
       show-details: never
+  health:
+    mail:
+      enabled: false
 
 # ── AI Translation (admin productivity tool) ───────────────────────────────
 # Set AI_TRANSLATION_API_KEY env var to enable. Leave empty to disable gracefully.
