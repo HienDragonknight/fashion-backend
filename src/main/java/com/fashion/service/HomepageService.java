@@ -59,24 +59,26 @@ public class HomepageService {
 
     @Transactional(readOnly = true)
     public List<HomepageResponse.CollectionItem> getCollections(String lang) {
-        List<String> collectionSlugs = List.of(
-                "dream-team-winner", "ao-chong-nang", "bst-sip-emmm",
-                "ao-giu-nhiet-xtra-heat", "jeans-collection", "bst-business-casual",
-                "yody-sport-nhe-tenh", "everyday-basics"
-        );
-
-        return categoryRepository.findByIsActiveTrueOrderBySortOrderAsc()
-                .stream()
-                .filter(c -> collectionSlugs.contains(c.getSlug()))
-                .sorted((a, b) -> Integer.compare(
-                        collectionSlugs.indexOf(a.getSlug()),
-                        collectionSlugs.indexOf(b.getSlug())))
+        List<Category> activeCategories = categoryRepository.findByIsActiveTrueOrderBySortOrderAsc();
+        
+        // First try to get categories with image URLs
+        List<HomepageResponse.CollectionItem> collections = activeCategories.stream()
+                .filter(c -> c.getImageUrl() != null && !c.getImageUrl().trim().isEmpty())
                 .map(c -> toCollectionItem(c, lang))
                 .collect(Collectors.toList());
+                
+        // If none have image URLs, just return all active categories
+        if (collections.isEmpty()) {
+            collections = activeCategories.stream()
+                    .map(c -> toCollectionItem(c, lang))
+                    .collect(Collectors.toList());
+        }
+        
+        return collections;
     }
 
     // -------------------------------------------------------
-    // Product Sections (6 sections for homepage)
+    // Product Sections (dynamic sections based on database categories)
     // -------------------------------------------------------
 
     @Transactional(readOnly = true)
@@ -86,51 +88,39 @@ public class HomepageService {
 
     @Transactional(readOnly = true)
     public List<HomepageResponse.ProductSection> getProductSections(String lang) {
-        // Each entry: [slug, displayTitle_vi, displayTitle_en, viewMoreLink]
-        List<String[]> sectionDefs = List.of(
-                new String[]{"easyoffice",      "EASY OFFICE",                "EASY OFFICE",              "/collection/EASYOFFICE"},
-                new String[]{"polo-all-in-one", "POLO ALL-IN-ONE",            "POLO ALL-IN-ONE",           "/collection/POLO-ALL-IN-ONE"},
-                new String[]{"sale-homepage",   "TIẾT KIỆM LÊN ĐẾN 400K",   "SAVE UP TO 400K",           "/collection/tiet-kiem-len-den-400k"},
-                new String[]{"kid-homepage",    "TỦ ĐỒ CHO BÉ",              "KIDS COLLECTION",           "/collection/kid-20"},
-                new String[]{"sun-protection",  "BST ÁO CHỐNG NẮNG",         "SUN PROTECTION COLLECTION", "/collection/ao-chong-nang"},
-                new String[]{"jean-flex",       "BST JEAN FLEX",             "JEAN FLEX COLLECTION",      "/collection/jeans-collection"}
-        );
+        List<Category> activeCategories = categoryRepository.findByIsActiveTrueOrderBySortOrderAsc();
 
-        return sectionDefs.stream().map(def -> {
-            String slug         = def[0];
-            String titleVi      = def[1];
-            String titleEn      = def[2];
-            String viewMoreLink = def[3];
-            String title        = LocaleUtils.resolve(titleVi, titleEn, lang);
+        return activeCategories.stream()
+                .map(category -> {
+                    Specification<Product> spec = (root, q, cb) ->
+                            cb.and(
+                                    cb.isTrue(root.get("isActive")),
+                                    cb.equal(root.get("category").get("id"), category.getId())
+                            );
 
-            Category category = categoryRepository.findBySlug(slug).orElse(null);
-            if (category == null) {
-                return HomepageResponse.ProductSection.builder()
-                        .id(slug).title(title).viewMoreLink(viewMoreLink)
-                        .products(List.of())
-                        .build();
-            }
+                    List<HomepageResponse.ProductCard> products =
+                            productRepository.findAll(spec,
+                                    PageRequest.of(0, 8, Sort.by("id").descending()))
+                                    .stream()
+                                    .map(p -> toProductCard(p, lang))
+                                    .collect(Collectors.toList());
 
-            Specification<Product> spec = (root, q, cb) ->
-                    cb.and(
-                            cb.isTrue(root.get("isActive")),
-                            cb.equal(root.get("category").get("id"), category.getId())
-                    );
+                    if (products.isEmpty()) {
+                        return null;
+                    }
 
-            List<HomepageResponse.ProductCard> products =
-                    productRepository.findAll(spec,
-                            PageRequest.of(0, 8, Sort.by("id").ascending()))
-                            .stream()
-                            .map(p -> toProductCard(p, lang))
-                            .collect(Collectors.toList());
+                    String title = LocaleUtils.resolve(category.getName(), category.getNameEn(), lang);
+                    String viewMoreLink = "/products?categoryId=" + category.getId();
 
-            return HomepageResponse.ProductSection.builder()
-                    .id(slug)
-                    .title(title)
-                    .viewMoreLink(viewMoreLink)
-                    .products(products)
-                    .build();
-        }).collect(Collectors.toList());
+                    return HomepageResponse.ProductSection.builder()
+                            .id(String.valueOf(category.getId()))
+                            .title(title)
+                            .viewMoreLink(viewMoreLink)
+                            .products(products)
+                            .build();
+                })
+                .filter(java.util.Objects::nonNull)
+                .collect(Collectors.toList());
     }
 
     // -------------------------------------------------------
