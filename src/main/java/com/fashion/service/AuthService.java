@@ -11,6 +11,7 @@ import com.fashion.exception.ResourceNotFoundException;
 import com.fashion.repository.PasswordResetTokenRepository;
 import com.fashion.repository.UserRepository;
 import com.fashion.security.JwtUtil;
+import com.fashion.service.OAuthService.OAuthProfile;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -34,6 +35,7 @@ public class AuthService {
     private final AuthenticationManager authManager;
     private final UserDetailsService userDetailsService;
     private final EmailService emailService;
+    private final OAuthService oauthService;
 
     @Transactional
     public AuthResponse register(RegisterRequest request) {
@@ -52,25 +54,64 @@ public class AuthService {
                 .email(request.getEmail())
                 .phone(request.getPhone())
                 .password(passwordEncoder.encode(request.getPassword()))
+                .authProvider("LOCAL")
                 .role("ROLE_CUSTOMER")
                 .build();
 
         userRepository.save(user);
 
-        UserDetails userDetails = userDetailsService.loadUserByUsername(
-                user.getEmail() != null ? user.getEmail() : user.getPhone());
+        return issueAuthResponse(user);
+    }
 
-        String accessToken = jwtUtil.generateAccessToken(userDetails);
-        String refreshToken = jwtUtil.generateRefreshToken(userDetails);
+    @Transactional
+    public AuthResponse loginWithGoogle(String idToken) {
+        OAuthProfile profile = oauthService.verifyGoogleToken(idToken);
+        return loginWithOAuth(profile);
+    }
 
-        user.setRefreshToken(refreshToken);
-        userRepository.save(user);
+    @Transactional
+    public AuthResponse loginWithFacebook(String accessToken) {
+        OAuthProfile profile = oauthService.verifyFacebookToken(accessToken);
+        return loginWithOAuth(profile);
+    }
 
-        return AuthResponse.builder()
-                .accessToken(accessToken)
-                .refreshToken(refreshToken)
-                .user(toUserResponse(user))
-                .build();
+    private AuthResponse loginWithOAuth(OAuthProfile profile) {
+        User user = userRepository
+                .findByAuthProviderAndProviderId(profile.provider(), profile.providerId())
+                .orElseGet(() -> findOrCreateOAuthUser(profile));
+
+        if (!user.getIsActive()) {
+            throw new BusinessException("Tài khoản đã bị khóa");
+        }
+
+        return issueAuthResponse(user);
+    }
+
+    private User findOrCreateOAuthUser(OAuthProfile profile) {
+        String email = profile.resolveEmail();
+
+        return userRepository.findByEmail(email).map(existing -> {
+            if ("LOCAL".equals(existing.getAuthProvider()) && existing.getPassword() != null) {
+                existing.setAuthProvider(profile.provider());
+                existing.setProviderId(profile.providerId());
+                if (existing.getAvatarUrl() == null && profile.avatarUrl() != null) {
+                    existing.setAvatarUrl(profile.avatarUrl());
+                }
+                return userRepository.save(existing);
+            }
+            if (profile.provider().equals(existing.getAuthProvider())
+                    && profile.providerId().equals(existing.getProviderId())) {
+                return existing;
+            }
+            throw new BusinessException("Email đã được đăng ký bằng phương thức khác");
+        }).orElseGet(() -> userRepository.save(User.builder()
+                .email(email)
+                .fullName(profile.fullName())
+                .avatarUrl(profile.avatarUrl())
+                .authProvider(profile.provider())
+                .providerId(profile.providerId())
+                .role("ROLE_CUSTOMER")
+                .build()));
     }
 
     @Transactional
@@ -86,18 +127,11 @@ public class AuthService {
             throw new BusinessException("Tài khoản đã bị khóa");
         }
 
-        UserDetails userDetails = userDetailsService.loadUserByUsername(request.getIdentifier());
-        String accessToken = jwtUtil.generateAccessToken(userDetails);
-        String refreshToken = jwtUtil.generateRefreshToken(userDetails);
+        if (user.getPassword() == null) {
+            throw new BusinessException("Vui lòng đăng nhập bằng Google hoặc Facebook");
+        }
 
-        user.setRefreshToken(refreshToken);
-        userRepository.save(user);
-
-        return AuthResponse.builder()
-                .accessToken(accessToken)
-                .refreshToken(refreshToken)
-                .user(toUserResponse(user))
-                .build();
+        return issueAuthResponse(user);
     }
 
     @Transactional
@@ -120,6 +154,22 @@ public class AuthService {
         return AuthResponse.builder()
                 .accessToken(newAccessToken)
                 .refreshToken(newRefreshToken)
+                .user(toUserResponse(user))
+                .build();
+    }
+
+    private AuthResponse issueAuthResponse(User user) {
+        String username = user.getEmail() != null ? user.getEmail() : user.getPhone();
+        UserDetails userDetails = userDetailsService.loadUserByUsername(username);
+        String accessToken = jwtUtil.generateAccessToken(userDetails);
+        String refreshToken = jwtUtil.generateRefreshToken(userDetails);
+
+        user.setRefreshToken(refreshToken);
+        userRepository.save(user);
+
+        return AuthResponse.builder()
+                .accessToken(accessToken)
+                .refreshToken(refreshToken)
                 .user(toUserResponse(user))
                 .build();
     }

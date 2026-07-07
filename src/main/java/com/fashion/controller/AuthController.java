@@ -1,6 +1,7 @@
 package com.fashion.controller;
 
 import com.fashion.dto.request.LoginRequest;
+import com.fashion.dto.request.OAuthTokenRequest;
 import com.fashion.dto.request.RegisterRequest;
 import com.fashion.dto.response.ApiResponse;
 import com.fashion.dto.response.AuthResponse;
@@ -29,6 +30,20 @@ public class AuthController {
     @PostMapping("/login")
     public ResponseEntity<ApiResponse<AuthResponse>> login(@Valid @RequestBody LoginRequest request) {
         return ResponseEntity.ok(ApiResponse.success("Đăng nhập thành công", authService.login(request)));
+    }
+
+    @PostMapping("/oauth/google")
+    public ResponseEntity<ApiResponse<AuthResponse>> loginWithGoogle(
+            @Valid @RequestBody OAuthTokenRequest request) {
+        return ResponseEntity.ok(ApiResponse.success(
+                "Đăng nhập Google thành công", authService.loginWithGoogle(request.getToken())));
+    }
+
+    @PostMapping("/oauth/facebook")
+    public ResponseEntity<ApiResponse<AuthResponse>> loginWithFacebook(
+            @Valid @RequestBody OAuthTokenRequest request) {
+        return ResponseEntity.ok(ApiResponse.success(
+                "Đăng nhập Facebook thành công", authService.loginWithFacebook(request.getToken())));
     }
 
     @PostMapping("/refresh")

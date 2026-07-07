@@ -27,8 +27,14 @@ public class User {
     @Column(unique = true)
     private String phone;
 
-    @Column(nullable = false)
     private String password;
+
+    @Column(name = "auth_provider", nullable = false)
+    @Builder.Default
+    private String authProvider = "LOCAL";
+
+    @Column(name = "provider_id")
+    private String providerId;
 
     @Column(name = "full_name", nullable = false)
     private String fullName;
