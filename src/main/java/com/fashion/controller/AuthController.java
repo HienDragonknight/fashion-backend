@@ -39,13 +39,6 @@ public class AuthController {
                 "Đăng nhập Google thành công", authService.loginWithGoogle(request.getToken())));
     }
 
-    @PostMapping("/oauth/facebook")
-    public ResponseEntity<ApiResponse<AuthResponse>> loginWithFacebook(
-            @Valid @RequestBody OAuthTokenRequest request) {
-        return ResponseEntity.ok(ApiResponse.success(
-                "Đăng nhập Facebook thành công", authService.loginWithFacebook(request.getToken())));
-    }
-
     @PostMapping("/refresh")
     public ResponseEntity<ApiResponse<AuthResponse>> refresh(@RequestBody Map<String, String> body) {
         return ResponseEntity.ok(ApiResponse.success(authService.refreshToken(body.get("refreshToken"))));

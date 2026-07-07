@@ -69,12 +69,6 @@ public class AuthService {
         return loginWithOAuth(profile);
     }
 
-    @Transactional
-    public AuthResponse loginWithFacebook(String accessToken) {
-        OAuthProfile profile = oauthService.verifyFacebookToken(accessToken);
-        return loginWithOAuth(profile);
-    }
-
     private AuthResponse loginWithOAuth(OAuthProfile profile) {
         User user = userRepository
                 .findByAuthProviderAndProviderId(profile.provider(), profile.providerId())
@@ -128,7 +122,7 @@ public class AuthService {
         }
 
         if (user.getPassword() == null) {
-            throw new BusinessException("Vui lòng đăng nhập bằng Google hoặc Facebook");
+            throw new BusinessException("Vui lòng đăng nhập bằng Google");
         }
 
         return issueAuthResponse(user);
