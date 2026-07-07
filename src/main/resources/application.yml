@@ -86,7 +86,7 @@ stripe:
   return-url: ${STRIPE_RETURN_URL:http://localhost:3000/checkout/success}
 
 cors:
-  allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000,http://localhost:3001,https://shopping-ecomerce.vercel.app,https://shopping-ecomerce1.vercel.app}
+  allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000,http://localhost:3001,https://vietco-fashion.vercel.app,https://shopping-ecomerce.vercel.app,https://shopping-ecomerce1.vercel.app}
 
 logging:
   level:
