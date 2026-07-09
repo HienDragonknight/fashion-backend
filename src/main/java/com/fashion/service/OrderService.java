@@ -32,6 +32,11 @@ public class OrderService {
         Address address = addressRepository.findByIdAndUserId(request.getAddressId(), userId)
                 .orElseThrow(() -> new ResourceNotFoundException("Địa chỉ không tìm thấy"));
 
+        String paymentMethod = request.getPaymentMethod();
+        if (!"COD".equals(paymentMethod) && !"PAYOS".equals(paymentMethod)) {
+            throw new BusinessException("Phương thức thanh toán không hợp lệ. Chỉ hỗ trợ COD và PayOS.");
+        }
+
         BigDecimal subtotal = BigDecimal.ZERO;
         List<OrderItem> items = new java.util.ArrayList<>();
 

@@ -74,11 +74,11 @@ vnpay:
   return-url: ${VNPAY_RETURN_URL:https://shopping-ecomerce.vercel.app/checkout/success}
 
 payos:
-  client-id: ${PAYOS_CLIENT_ID:test-client-id}
-  api-key: ${PAYOS_API_KEY:test-api-key}
-  checksum-key: ${PAYOS_CHECKSUM_KEY:test-checksum-key}
-  return-url: ${PAYOS_RETURN_URL:http://localhost:3000/checkout/success}
-  cancel-url: ${PAYOS_CANCEL_URL:http://localhost:3000/checkout}
+  client-id: ${PAYOS_CLIENT_ID:}
+  api-key: ${PAYOS_API_KEY:}
+  checksum-key: ${PAYOS_CHECKSUM_KEY:}
+  return-url: ${PAYOS_RETURN_URL:https://vietco-fashion.vercel.app/checkout/success}
+  cancel-url: ${PAYOS_CANCEL_URL:https://vietco-fashion.vercel.app/checkout}
 
 stripe:
   secret-key: ${STRIPE_SECRET_KEY:sk_test_placeholder}

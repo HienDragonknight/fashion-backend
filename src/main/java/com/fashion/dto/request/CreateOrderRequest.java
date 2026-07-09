@@ -11,7 +11,7 @@ public class CreateOrderRequest {
     private Long addressId;
 
     @NotBlank
-    private String paymentMethod; // COD | VNPAY
+    private String paymentMethod; // COD | PAYOS
 
     @NotEmpty
     private List<OrderItemRequest> items;
