@@ -12,10 +12,11 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import vn.payos.PayOS;
-import vn.payos.type.CheckoutResponseData;
-import vn.payos.type.ItemData;
-import vn.payos.type.PaymentData;
-import vn.payos.type.Webhook;
+import vn.payos.core.ClientOptions;
+import vn.payos.model.v2.paymentRequests.CreatePaymentLinkRequest;
+import vn.payos.model.v2.paymentRequests.CreatePaymentLinkResponse;
+import vn.payos.model.v2.paymentRequests.PaymentLinkItem;
+import vn.payos.model.webhooks.WebhookData;
 
 import java.util.List;
 import java.util.Map;
@@ -26,8 +27,8 @@ import java.util.Map;
 public class PaymentService {
 
     private final OrderRepository orderRepository;
+    private final ObjectMapper objectMapper;
 
-    // ── PayOS config ──────────────────────────────────────────────────────────
     @Value("${payos.client-id}")
     private String payosClientId;
 
@@ -43,77 +44,66 @@ public class PaymentService {
     @Value("${payos.cancel-url}")
     private String payosCancelUrl;
 
-    // ── Stripe config ─────────────────────────────────────────────────────────
     @Value("${stripe.secret-key}")
     private String stripeSecretKey;
 
     @Value("${stripe.webhook-secret}")
     private String stripeWebhookSecret;
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // PayOS
-    // ─────────────────────────────────────────────────────────────────────────
+    private PayOS payOSClient() {
+        return new PayOS(
+                ClientOptions.builder()
+                        .clientId(payosClientId)
+                        .apiKey(payosApiKey)
+                        .checksumKey(payosChecksumKey)
+                        .build()
+        );
+    }
 
-    /**
-     * Creates a PayOS payment link for the given order.
-     * Returns the checkoutUrl to redirect the customer to.
-     */
     @Transactional
     public String createPayOSLink(Long orderId) throws Exception {
         Order order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new RuntimeException("Order not found: " + orderId));
 
-        PayOS payOS = new PayOS(payosClientId, payosApiKey, payosChecksumKey);
+        PayOS payOS = payOSClient();
 
-        // PayOS requires amount in VND integer (no decimal)
         long amount = order.getTotal().longValue();
-
-        // Use orderId as orderCode (must be unique positive int)
         long orderCode = order.getId();
 
-        List<ItemData> items = order.getItems().stream()
-                .map(item -> ItemData.builder()
+        List<PaymentLinkItem> items = order.getItems().stream()
+                .map(item -> PaymentLinkItem.builder()
                         .name(item.getProductName().substring(0, Math.min(item.getProductName().length(), 50)))
                         .quantity(item.getQuantity())
-                        .price((int) item.getPrice().longValue())
+                        .price(item.getPrice().longValue())
                         .build())
                 .toList();
 
-        PaymentData paymentData = PaymentData.builder()
+        CreatePaymentLinkRequest paymentData = CreatePaymentLinkRequest.builder()
                 .orderCode(orderCode)
-                .amount((int) amount)
-                .description("DH" + orderId) // max 25 chars
+                .amount(amount)
+                .description("DH" + orderId)
                 .items(items)
                 .returnUrl(payosReturnUrl + "?orderId=" + orderId + "&method=PAYOS")
                 .cancelUrl(payosCancelUrl + "?orderId=" + orderId)
                 .build();
 
-        CheckoutResponseData response = payOS.createPaymentLink(paymentData);
+        CreatePaymentLinkResponse response = payOS.paymentRequests().create(paymentData);
 
-        // Save paymentRef
         order.setPaymentRef(String.valueOf(orderCode));
         orderRepository.save(order);
 
         return response.getCheckoutUrl();
     }
 
-    /**
-     * Handles PayOS webhook. Verifies signature, marks order PAID.
-     */
     @Transactional
     public void handlePayOSWebhook(Map<String, Object> body) {
         try {
-            PayOS payOS = new PayOS(payosClientId, payosApiKey, payosChecksumKey);
-            // Convert raw map to PayOS Webhook type
-            ObjectMapper mapper = new ObjectMapper();
-            Webhook webhookBody = mapper.convertValue(body, Webhook.class);
-            // Verify webhook signature
-            payOS.verifyPaymentWebhookData(webhookBody);
+            PayOS payOS = payOSClient();
+            String webhookJson = objectMapper.writeValueAsString(body);
+            WebhookData webhookData = payOS.webhooks().verify(webhookJson);
 
-            String code = webhookBody.getCode() != null ? webhookBody.getCode() : "99";
-
-            if ("00".equals(code) && webhookBody.getData() != null) {
-                long orderCode = webhookBody.getData().getOrderCode();
+            if (webhookData != null && webhookData.getOrderCode() != null) {
+                long orderCode = webhookData.getOrderCode();
                 orderRepository.findById(orderCode).ifPresent(order -> {
                     order.setPaymentStatus("PAID");
                     order.setStatus("PROCESSING");
@@ -127,14 +117,6 @@ public class PaymentService {
         }
     }
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // Stripe
-    // ─────────────────────────────────────────────────────────────────────────
-
-    /**
-     * Creates a Stripe PaymentIntent for the given order.
-     * Returns clientSecret + paymentIntentId to the frontend.
-     */
     @Transactional
     public Map<String, String> createStripeIntent(Long orderId) throws Exception {
         Order order = orderRepository.findById(orderId)
@@ -142,14 +124,11 @@ public class PaymentService {
 
         Stripe.apiKey = stripeSecretKey;
 
-        // Stripe amount is in smallest currency unit — VND has no subunit so amount is same
-        // But Stripe does NOT support VND directly, so we convert to USD (approximate)
-        // 1 USD ≈ 25,000 VND  — for production use a live rate
         long amountVnd = order.getTotal().longValue();
-        long amountUsd = Math.max(50, amountVnd / 25000); // min $0.50 per Stripe rules
+        long amountUsd = Math.max(50, amountVnd / 25000);
 
         PaymentIntentCreateParams params = PaymentIntentCreateParams.builder()
-                .setAmount(amountUsd * 100L) // Stripe uses cents
+                .setAmount(amountUsd * 100L)
                 .setCurrency("usd")
                 .addPaymentMethodType("card")
                 .putMetadata("orderId", orderId.toString())
@@ -159,7 +138,6 @@ public class PaymentService {
 
         PaymentIntent intent = PaymentIntent.create(params);
 
-        // Save paymentRef
         order.setPaymentRef(intent.getId());
         orderRepository.save(order);
 
@@ -171,9 +149,6 @@ public class PaymentService {
         );
     }
 
-    /**
-     * Handles Stripe webhook. Verifies signature, marks order PAID.
-     */
     @Transactional
     public void handleStripeWebhook(String payload, String sigHeader) {
         try {
