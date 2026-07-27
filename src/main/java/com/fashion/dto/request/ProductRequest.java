@@ -36,6 +36,8 @@ public class ProductRequest {
 
     private Boolean isFeatured = false;
 
+    private Boolean isCollection = false;
+
     private Integer weightGrams = 300;
 
     /**

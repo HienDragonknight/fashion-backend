@@ -76,6 +76,10 @@ public class Product {
     @Builder.Default
     private Boolean isFeatured = false;
 
+    @Column(name = "is_collection", nullable = false)
+    @Builder.Default
+    private Boolean isCollection = false;
+
     @Column(name = "weight_grams", nullable = false)
     @Builder.Default
     private Integer weightGrams = 300;

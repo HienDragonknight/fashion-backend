@@ -56,8 +56,21 @@ public class ProductService {
     public Page<ProductResponse> getProducts(
             Long categoryId, Long brandId, BigDecimal minPrice, BigDecimal maxPrice,
             String gender, Integer minDiscountPercent, String sort, int page, int size, String lang) {
+        return getProducts(categoryId, brandId, minPrice, maxPrice, gender, minDiscountPercent, null, sort, page, size, lang);
+    }
+
+    @Transactional(readOnly = true)
+    public Page<ProductResponse> getProducts(
+            Long categoryId, Long brandId, BigDecimal minPrice, BigDecimal maxPrice,
+            String gender, Integer minDiscountPercent, Boolean isCollection, String sort, int page, int size, String lang) {
 
         Specification<Product> spec = Specification.where(isActive());
+
+        if (Boolean.TRUE.equals(isCollection)) {
+            spec = spec.and((root, q, cb) -> cb.isTrue(root.get("isCollection")));
+        } else {
+            spec = spec.and((root, q, cb) -> cb.isFalse(root.get("isCollection")));
+        }
 
         if (categoryId != null) spec = spec.and(hasCategory(categoryId));
         if (brandId != null) spec = spec.and(hasBrand(brandId));
@@ -143,6 +156,7 @@ public class ProductService {
                 .thumbnailUrl(request.getThumbnailUrl())
                 .isActive(request.getIsActive())
                 .isFeatured(request.getIsFeatured())
+                .isCollection(request.getIsCollection() != null ? request.getIsCollection() : false)
                 .weightGrams(request.getWeightGrams())
                 .genderTags(genderTagsStr)
                 .build();
@@ -205,6 +219,7 @@ public class ProductService {
         product.setThumbnailUrl(request.getThumbnailUrl());
         product.setIsActive(request.getIsActive());
         product.setIsFeatured(request.getIsFeatured());
+        product.setIsCollection(request.getIsCollection() != null ? request.getIsCollection() : false);
         product.setWeightGrams(request.getWeightGrams());
         product.setGenderTags(
                 (request.getGenderTags() != null && !request.getGenderTags().isEmpty())
@@ -325,6 +340,7 @@ public class ProductService {
                 .thumbnailUrl(product.getThumbnailUrl())
                 .isActive(product.getIsActive())
                 .isFeatured(product.getIsFeatured())
+                .isCollection(product.getIsCollection())
                 .weightGrams(product.getWeightGrams())
                 .soldCount(product.getSoldCount())
                 .viewCount(product.getViewCount())
@@ -479,6 +495,13 @@ public class ProductService {
     public Page<ProductResponse> getAdminProducts(
             String search, Long categoryId, Long brandId, Boolean isActive,
             String gender, String sort, int page, int size) {
+        return getAdminProducts(search, categoryId, brandId, isActive, gender, null, sort, page, size);
+    }
+
+    @Transactional(readOnly = true)
+    public Page<ProductResponse> getAdminProducts(
+            String search, Long categoryId, Long brandId, Boolean isActive,
+            String gender, Boolean isCollection, String sort, int page, int size) {
 
         Specification<Product> spec = Specification.where(null);
 
@@ -496,6 +519,9 @@ public class ProductService {
         }
         if (gender != null && !gender.isBlank()) {
             spec = spec.and(hasGenderTag(gender.toUpperCase()));
+        }
+        if (isCollection != null) {
+            spec = spec.and((root, q, cb) -> cb.equal(root.get("isCollection"), isCollection));
         }
         
         Sort sortObj = switch (sort != null ? sort : "newest") {

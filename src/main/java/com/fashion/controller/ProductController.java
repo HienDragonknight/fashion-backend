@@ -28,13 +28,14 @@ public class ProductController {
             @RequestParam(required = false) java.math.BigDecimal maxPrice,
             @RequestParam(required = false) String gender,
             @RequestParam(required = false) Integer minDiscountPercent,
+            @RequestParam(required = false) Boolean isCollection,
             @RequestParam(defaultValue = "newest") String sort,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
             @RequestHeader(value = "Accept-Language", defaultValue = "vi") String acceptLanguage) {
         String lang = LocaleUtils.fromHeader(acceptLanguage);
         return ResponseEntity.ok(ApiResponse.success(
-                productService.getProducts(categoryId, brandId, minPrice, maxPrice, gender, minDiscountPercent, sort, page, size, lang)));
+                productService.getProducts(categoryId, brandId, minPrice, maxPrice, gender, minDiscountPercent, isCollection, sort, page, size, lang)));
     }
 
     @GetMapping("/search")

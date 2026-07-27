@@ -48,6 +48,7 @@ public class ProductResponse {
     private String thumbnailUrl;
     private Boolean isActive;
     private Boolean isFeatured;
+    private Boolean isCollection;
     private Integer weightGrams;
     private Integer soldCount;
     private Integer viewCount;

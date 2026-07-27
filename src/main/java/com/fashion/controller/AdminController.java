@@ -302,11 +302,12 @@ public class AdminController {
             @RequestParam(required = false) Long brandId,
             @RequestParam(required = false) Boolean isActive,
             @RequestParam(required = false) String gender,
+            @RequestParam(required = false) Boolean isCollection,
             @RequestParam(required = false) String sort,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
         return ResponseEntity.ok(ApiResponse.success(
-                productService.getAdminProducts(search, categoryId, brandId, isActive, gender, sort, page, size)));
+                productService.getAdminProducts(search, categoryId, brandId, isActive, gender, isCollection, sort, page, size)));
     }
 
     @PostMapping("/products")
