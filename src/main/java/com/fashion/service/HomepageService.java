@@ -61,10 +61,20 @@ public class HomepageService {
     public List<HomepageResponse.CollectionItem> getCollections(String lang) {
         List<Category> activeCategories = categoryRepository.findByIsActiveTrueOrderBySortOrderAsc();
         
-        return activeCategories.stream()
+        // First try to get categories with image URLs
+        List<HomepageResponse.CollectionItem> collections = activeCategories.stream()
                 .filter(c -> c.getImageUrl() != null && !c.getImageUrl().trim().isEmpty())
                 .map(c -> toCollectionItem(c, lang))
                 .collect(Collectors.toList());
+                
+        // If none have image URLs, just return all active categories
+        if (collections.isEmpty()) {
+            collections = activeCategories.stream()
+                    .map(c -> toCollectionItem(c, lang))
+                    .collect(Collectors.toList());
+        }
+        
+        return collections;
     }
 
     // -------------------------------------------------------
