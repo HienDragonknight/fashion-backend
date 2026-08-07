@@ -43,7 +43,10 @@ public class AddressController {
         Long userId = getUserId(userDetails);
         var user = userRepository.findById(userId).orElseThrow(() -> new ResourceNotFoundException("User", userId));
 
-        if (request.getIsDefault()) {
+        boolean isFirst = addressRepository.findByUserIdOrderByIsDefaultDescCreatedAtAsc(userId).isEmpty();
+        boolean isDefault = Boolean.TRUE.equals(request.getIsDefault()) || isFirst;
+
+        if (isDefault) {
             addressRepository.clearDefaultForUser(userId);
         }
 
@@ -58,7 +61,7 @@ public class AddressController {
                 .wardCode(request.getWardCode())
                 .ward(request.getWard())
                 .detail(request.getDetail())
-                .isDefault(request.getIsDefault())
+                .isDefault(isDefault)
                 .build();
 
         return ResponseEntity.ok(ApiResponse.success("Đã thêm địa chỉ", addressRepository.save(address)));
