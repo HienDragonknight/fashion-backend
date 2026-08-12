@@ -17,7 +17,7 @@ public class OAuthService {
     public OAuthProfile verifyGoogleToken(String idToken) {
         String clientId = oauthProperties.getGoogle().getClientId();
         if (clientId == null || clientId.isBlank()) {
-            clientId = "961427749932-t5thilf7f1i18r1jhi128e2u8snfbo94.apps.googleusercontent.com";
+            clientId = "632333367760-627u311c3r8v8faguklnsoi17ohrgbfm.apps.googleusercontent.com";
         }
 
         JsonNode payload;
@@ -35,7 +35,7 @@ public class OAuthService {
         }
 
         String audience = payload.path("aud").asText("");
-        if (!clientId.equals(audience) && !"961427749932-t5thilf7f1i18r1jhi128e2u8snfbo94.apps.googleusercontent.com".equals(audience)) {
+        if (!clientId.equals(audience) && !"632333367760-627u311c3r8v8faguklnsoi17ohrgbfm.apps.googleusercontent.com".equals(audience)) {
             throw new BusinessException("Google token không khớp ứng dụng");
         }
 
