@@ -47,7 +47,7 @@ server:
 
 oauth:
   google:
-    client-id: ${GOOGLE_CLIENT_ID:}
+    client-id: ${GOOGLE_CLIENT_ID:961427749932-t5thilf7f1i18r1jhi128e2u8snfbo94.apps.googleusercontent.com}
   facebook:
     app-id: ${FACEBOOK_APP_ID:}
     app-secret: ${FACEBOOK_APP_SECRET:}
@@ -71,22 +71,22 @@ vnpay:
   url: https://sandbox.vnpayment.vn/paymentv2/vpcpay.html
   tmn-code: ${VNPAY_TMN_CODE:DEMO1234}
   hash-secret: ${VNPAY_HASH_SECRET:DEMOSECRET123456}
-  return-url: ${VNPAY_RETURN_URL:https://shopping-ecomerce.vercel.app/checkout/success}
+  return-url: ${VNPAY_RETURN_URL:https://vietco-fashion1.vercel.app/checkout/success}
 
 payos:
   client-id: ${PAYOS_CLIENT_ID:}
   api-key: ${PAYOS_API_KEY:}
   checksum-key: ${PAYOS_CHECKSUM_KEY:}
-  return-url: ${PAYOS_RETURN_URL:https://vietco-fashion.vercel.app/checkout/success}
-  cancel-url: ${PAYOS_CANCEL_URL:https://vietco-fashion.vercel.app/checkout}
+  return-url: ${PAYOS_RETURN_URL:https://vietco-fashion1.vercel.app/checkout/success}
+  cancel-url: ${PAYOS_CANCEL_URL:https://vietco-fashion1.vercel.app/checkout}
 
 stripe:
   secret-key: ${STRIPE_SECRET_KEY:sk_test_placeholder}
   webhook-secret: ${STRIPE_WEBHOOK_SECRET:whsec_placeholder}
-  return-url: ${STRIPE_RETURN_URL:http://localhost:3000/checkout/success}
+  return-url: ${STRIPE_RETURN_URL:https://vietco-fashion1.vercel.app/checkout/success}
 
 cors:
-  allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000,http://localhost:3001,https://vietco-fashion.vercel.app,https://shopping-ecomerce.vercel.app,https://shopping-ecomerce1.vercel.app}
+  allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000,http://localhost:3001,https://vietco-fashion1.vercel.app,https://vietco-fashion.vercel.app,https://shopping-ecomerce.vercel.app,https://shopping-ecomerce1.vercel.app}
 
 logging:
   level:
@@ -114,8 +114,12 @@ ai:
     api-url: ${AI_TRANSLATION_API_URL:https://generativelanguage.googleapis.com/v1beta/openai/v1/chat/completions}
     model: ${AI_TRANSLATION_MODEL:gemini-2.5-flash}
 
-# ── OpenAI Virtual Try-On ────────────────────────────────────────────────────
+# ── Virtual Try-On AI Models ──────────────────────────────────────────────────
 openai:
   api-key: ${OPENAI_API_KEY:}
   image-model: gpt-image-1
   image-size: 1024x1024
+
+replicate:
+  api-token: ${REPLICATE_API_TOKEN:}
+

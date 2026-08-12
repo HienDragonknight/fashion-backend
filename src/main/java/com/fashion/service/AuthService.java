@@ -85,7 +85,8 @@ public class AuthService {
         String email = profile.resolveEmail();
 
         return userRepository.findByEmail(email).map(existing -> {
-            if ("LOCAL".equals(existing.getAuthProvider()) && existing.getPassword() != null) {
+            boolean isNewProvider = existing.getProviderId() == null || existing.getProviderId().isBlank();
+            if (isNewProvider || profile.provider().equals(existing.getAuthProvider())) {
                 existing.setAuthProvider(profile.provider());
                 existing.setProviderId(profile.providerId());
                 if (existing.getAvatarUrl() == null && profile.avatarUrl() != null) {
@@ -93,11 +94,13 @@ public class AuthService {
                 }
                 return userRepository.save(existing);
             }
-            if (profile.provider().equals(existing.getAuthProvider())
-                    && profile.providerId().equals(existing.getProviderId())) {
-                return existing;
+            // If registered via local password or another social provider, link Google
+            existing.setAuthProvider(profile.provider());
+            existing.setProviderId(profile.providerId());
+            if (existing.getAvatarUrl() == null && profile.avatarUrl() != null) {
+                existing.setAvatarUrl(profile.avatarUrl());
             }
-            throw new BusinessException("Email đã được đăng ký bằng phương thức khác");
+            return userRepository.save(existing);
         }).orElseGet(() -> userRepository.save(User.builder()
                 .email(email)
                 .fullName(profile.fullName())

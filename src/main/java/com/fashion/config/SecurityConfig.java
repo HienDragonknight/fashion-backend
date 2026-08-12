@@ -53,6 +53,8 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.GET, "/reviews/**").permitAll()
                 .requestMatchers(HttpMethod.GET, "/banners/**").permitAll()
                 .requestMatchers(HttpMethod.GET, "/homepage/**").permitAll()
+                // Virtual try-on generation public endpoint
+                .requestMatchers(HttpMethod.POST, "/try-on").permitAll()
                 // GHN public
                 .requestMatchers("/ghn/**").permitAll()
                 // VNPay callback

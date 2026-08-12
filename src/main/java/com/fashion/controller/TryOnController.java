@@ -3,16 +3,19 @@ package com.fashion.controller;
 import com.fashion.dto.request.TryOnRequest;
 import com.fashion.dto.request.TryOnResultRequest;
 import com.fashion.dto.response.ApiResponse;
+import com.fashion.dto.response.TryOnGenerateResponse;
 import com.fashion.dto.response.TryOnResponse;
 import com.fashion.repository.UserRepository;
 import com.fashion.service.TryOnService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 @RestController
 @RequestMapping("/try-on")
@@ -21,6 +24,30 @@ public class TryOnController {
 
     private final TryOnService tryOnService;
     private final UserRepository userRepository;
+
+    /**
+     * POST /try-on
+     * Multipart endpoint to generate virtual try-on using IDM-VTON, OOTDiffusion, or OpenAI.
+     */
+    @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<ApiResponse<TryOnGenerateResponse>> generate(
+            @RequestParam("personImage") MultipartFile personImage,
+            @RequestParam(value = "garmentImage", required = false) MultipartFile garmentImage,
+            @RequestParam(value = "garmentImageUrl", required = false) String garmentImageUrl,
+            @RequestParam(value = "productName", required = false) String productName,
+            @RequestParam(value = "category", required = false) String category,
+            @RequestParam(value = "modelType", required = false, defaultValue = "IDM_VTON") String modelType
+    ) {
+        TryOnGenerateResponse response = tryOnService.generate(
+                personImage,
+                garmentImage,
+                garmentImageUrl,
+                productName,
+                category,
+                modelType
+        );
+        return ResponseEntity.ok(ApiResponse.success("Đã tạo kết quả thử đồ thành công", response));
+    }
 
     /**
      * POST /try-on/history
